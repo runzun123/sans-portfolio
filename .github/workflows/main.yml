@@ -1,0 +1,46 @@
+name: Deploy Static Website to S3
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      # 🧱 Step 1: Enable Static Website Hosting
+      - name: Enable S3 Static Website Hosting
+        run: |
+          aws s3 website s3://sans-portfolio/ --index-document index.html --error-document error.html
+
+      # 🧱 Step 2: Apply Bucket Policy
+      - name: Apply Public Read Policy
+        run: |
+          POLICY='{
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Sid": "PublicReadAccess",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::sans-portfolio/*"
+            }]
+          }'
+          echo "$POLICY" > policy.json
+          aws s3api put-bucket-policy --bucket sans-portfolio --policy file://policy.json
+
+      # 🧱 Step 3: Deploy Files
+      - name: Deploy to S3
+        run: aws s3 sync . s3://sans-portfolio --delete
